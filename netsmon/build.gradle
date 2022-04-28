@@ -1,0 +1,128 @@
+import org.jetbrains.dokka.gradle.DokkaTask
+
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.dokka'
+    id 'signing'
+    id 'maven-publish'
+}
+
+group = 'dev.oak3.android'
+version = '0.1.0-SNAPSHOT'
+
+android {
+    compileSdk 32
+
+    publishing {
+        singleVariant('release') {
+            withSourcesJar()
+        }
+    }
+
+    defaultConfig {
+        minSdk 21
+        targetSdk 32
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.7.0'
+    implementation 'androidx.appcompat:appcompat:1.4.1'
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.3'
+}
+
+task javadocJar(type: Jar, dependsOn: dokkaJavadoc) {
+    classifier = 'javadoc'
+    from dokkaJavadoc.outputDirectory
+}
+
+publishing {
+    repositories {
+        maven {
+            name = 'OSSRH'
+            def releasesRepoUrl = 'https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/'
+            def snapshotsRepoUrl = 'https://s01.oss.sonatype.org/content/repositories/snapshots/'
+            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+            credentials {
+                username = System.getenv('MAVEN_USERNAME')
+                password = System.getenv('MAVEN_PASSWORD')
+            }
+        }
+    }
+
+    publications {
+        release(MavenPublication) {
+            afterEvaluate {
+                from components.release
+            }
+
+            artifactId = 'netsmon-android'
+
+            artifact javadocJar
+
+            pom {
+                name = 'Network Status Monitor for Android'
+                description = 'This library offers observables and helper methods while monitoring android network status changes.'
+                url = 'https://github.com/oak/netsmon-android'
+
+                scm {
+                    connection = 'scm:git:https://github.com/oak/netsmon-android.git'
+                    developerConnection = 'git@github.com:oak/netsmon-android.git'
+                    url = 'https://github.com/oak/netsmon-android'
+                }
+
+                issueManagement {
+                    system = 'GitHub'
+                    url = 'https://github.com/oak/netsmon-android/issues'
+                }
+
+                ciManagement {
+                    system = 'Github Actions'
+                    url = 'https://github.com/oak/netsmon-android/actions'
+                }
+
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = 'oak'
+                        name = 'Alexandre Carvalho'
+                        email = 'adcarvalho@gmail.com'
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Reference at https://docs.gradle.org/current/userguide/signing_plugin.html#sec:in-memory-keys
+signing {
+    def signingKey = System.getenv('GPG_SIGNING_KEY') ?: findProperty('signing.gnupg.keyName')
+    def signingKeyPassword = System.getenv('GPG_SIGNING_KEY_PASSWORD') ?: findProperty('signing.gnupg.passphrase')
+    useInMemoryPgpKeys(signingKey, signingKeyPassword)
+    sign publishing.publications.release
+}
